@@ -1,63 +1,95 @@
-# Autonomous Mars Rover — Goal-Directed KB Agent with Organic Terrain
+# ARES-1 Autonomous Mars Rover — 3D Knowledge-Based Mission Simulation
 
-A simulated Mars rover that navigates an unknown Martian planetary grid to reach an **Extraction Goal** using **propositional logic inference (PL-RESOLUTION)** over a Knowledge Base. Every movement decision is derived from `ASK(KB, query)` — with guaranteed 100% solvability and organic procedural terrain visuals.
-
----
-
-## 🌟 What's New in this Release
-
-1. **Goal-Directed Mission Navigation**:
-   - Fixed **Start Landing Pad `(0,0)`** and **Extraction Beacon `(N-1, N-1)`**.
-   - Solvability Guarantee: Every generated map is verified via BFS pathfinding before mission start. If random hazards block all routes, a safe corridor is injected, guaranteeing 100% solvability.
-   - Goal-Directed Heuristic: Rover prioritizes KB-inferred safe cells that reduce Manhattan distance to Goal, with global frontier backtracking when local paths are blocked.
-2. **Organic Planetary Terrain (No Hard Grid Lines)**:
-   - **Continuous Martian Surface**: Procedural multi-layer rust soil (`#B7410E`) with dust speckles, rock boulders, and impact craters.
-   - **Acid Pools (Hazards)**: Irregular organic bubbling green fluid pools with scorched mineral rims, caustic highlights, and rising bubble particles.
-   - **Gas Clouds (Radiation)**: Billowing, soft-edged semi-transparent toxic vapor clouds with dynamic drifting particle animations.
-   - **Soft Atmospheric Fog-of-War**: Dark atmospheric dust shroud that organically clears with feathered radial light around perceived areas.
-3. **Animated Rover & Directional Trails**:
-   - Directional facing: The rover rotates to face its movement vector.
-   - Persistent tire tracks: Leaves realistic wheel tracks on traveled terrain.
-   - Smooth 60 FPS interpolation (`lerp`) with controllable decision step rates.
+A state-of-the-art **3D Planetary Simulation** of an autonomous Mars Rover navigating an unknown Martian landscape to reach an **Orbital Extraction Goal** using **Propositional Logic Inference (PL-RESOLUTION)** over a Knowledge Base. Every single rover decision is derived by logical inference — with 100% solvability guarantee, dynamic PBR lighting, articulated 3D rover physics, procedural shaders, and synthesized audio.
 
 ---
 
-## Quick Start
+## 🌟 3D Simulation Features
 
-### 1. Mars-Themed Pygame Simulation (Default)
+1. **High-Fidelity 3D Martian Planetary Surface**:
+   - Procedural heightmapped Martian terrain with sand dunes, crater basins, and scattered rock boulders.
+   - Atmospheric dust particle storm drifting with Martian wind.
+   - Dynamic directional sunlight casting soft real-time shadows across the landscape.
+   - **Start Base (0,0)**: High-tech Martian Landing Pad with glowing boundary beacon lights.
+   - **Goal Extraction Tower (N-1, N-1)**: Sci-Fi Extraction Tower shooting a skyward orbital blue laser beam.
+
+2. **Articulated 3D Mars Rover Model**:
+   - 6 individually animated all-terrain treaded wheels that roll with ground velocity and steer dynamically.
+   - NASA gold/white foil avionics body, solar panel deck, antenna dish, and pan-tilt camera mast.
+   - Dual high-intensity LED headlights casting real-time spotlight cones on terrain.
+   - Holographic 3D Sonar radar scanning dome displaying partial-observability perception in real time.
+   - Persistent 3D wheel tracks across traversed Martian terrain.
+
+3. **3D Hazards & Radiation Plasma**:
+   - **Acid Pools (Hazards)**: Depressed organic fluid basins with toxic green caustic glow (`#22ff44`) and rotating 3D warning triangles.
+   - **Radiation Anomalies (Radiation)**: Swirling ethereal volumetric energy spheres with rotating golden/yellow hazard rings (`#f5d741`).
+
+4. **3D Volumetric Fog-of-War**:
+   - Unexplored cells are shrouded in dark Martian sandstorm clouds.
+   - Perceived cells dissolve with an energy sweep as the rover explores.
+
+5. **4 Camera Modes**:
+   - 🎥 **Chase Cam**: Cinematic follow camera tracking behind the rover.
+   - 🛰️ **Satellite Cam**: Top-down tactical overview of the entire 3D grid.
+   - 🤖 **Rover Mast Cam (FPV)**: First-person rover cockpit view with holographic visor reticle and telemetry.
+   - 🚀 **Orbit Cam**: Free 3D orbital control (drag to rotate, scroll to zoom, right-click to pan).
+
+6. **Procedural Mars Audio Engine (Web Audio API)**:
+   - Synthesized real-time soundscape: Martian wind ambience, electric servo motor whine, sonar radar pings, hazard alert sirens, and victory fanfare.
+
+7. **Cyberpunk Mission Control HUD**:
+   - Live Telemetry: Step counter, `(X, Y)` position, Extraction Goal distance, KB clause count, Avoidance counters.
+   - Interactive Speed Controller Slider (`0.25x` to `4.0x`) with quick nudge buttons.
+   - Clickable **"REGENERATE MAP [R]"** button for fresh 100% solvable random missions.
+   - Live propositional resolution logic stream.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Launch 3D Simulation (Default)
 ```bash
-python main.py                  # Pygame GUI with fresh random map (100% solvable)
-python main.py --size 8         # 8x8 grid simulation
-python main.py --speed 0.3      # Fast animation rate (0.3s per step)
-python main.py --seed 42        # Fixed reproducible seed
+python main.py
+```
+*Automatically starts the local server and opens the 3D cinematic simulation in your default browser at `http://localhost:8000`.*
+
+### 2. Custom Size / Port
+```bash
+python main.py --size 8 --port 8080
 ```
 
-### 2. Headless / Console-Only Mode
+### 3. Legacy 2D Pygame Visualizer
 ```bash
-python main.py --no-gui         # Clean live console logs
-python main.py --no-gui --no-color # Without ANSI colors
+python main.py --2d
 ```
 
-### 3. Run Verification & Stress Tests
+### 4. Headless Console-Only Mode
+```bash
+python main.py --cli
+```
+
+### 5. Run Verification & Stress Tests
 ```bash
 python tests.py
 ```
 
 ---
 
-## Interactive Pygame Controls
+## 🎮 Interactive Controls
 
-| Key | Action |
+| Control | Action |
 |---|---|
 | `[SPACE]` | **Pause / Resume** simulation |
 | `[RIGHT ARROW]` | **Single Step** forward (when paused) |
-| `[+]` / `[-]` | **Speed Up / Slow Down** animation rate |
-| `[R]` | **Generate New Solvable Map** & restart |
-| `[ESC]` | **Quit** simulation |
+| `[R]` | **Regenerate Solvable Map** & restart mission |
+| `[C]` | **Cycle Camera Mode** (Chase ➔ Satellite ➔ Mast FPV ➔ Orbit) |
+| `[G]` | **Toggle 3D Grid Lines** ON / OFF |
+| `[+]` / `[-]` | **Speed Up / Slow Down** simulation rate (or use HUD slider) |
+| `[Mouse Drag]` | **Orbit / Look Around** (in Orbit Cam mode) |
 
 ---
 
-## Propositional Symbols & Inference
+## 🧠 Propositional Logic Knowledge Base
 
 Each cell `(x,y)` is modeled with the following propositional symbols:
 
@@ -79,50 +111,3 @@ Each cell `(x,y)` is modeled with the following propositional symbols:
    $$\{\text{HazardSignal\_}(x,y), \text{RadiationSignal\_}(x,y), \text{Safe\_}(x,y)\}$$
 4. **Blocked Implies Unsafe**: $\text{Blocked\_}(x,y) \rightarrow \neg \text{Safe\_}(x,y)$
    $$\{\neg \text{Blocked\_}(x,y), \neg \text{Safe\_}(x,y)\}$$
-
----
-
-## Architecture & Causality Invariant
-
-```
-       ┌────────────────────────┐
-       │   Mars 2D Grid World   │ (Solvability validated: Start -> Goal)
-       └───────────┬────────────┘
-                   │ get_percepts(x,y)
-                   ▼
-       ┌────────────────────────┐
-       │   TELL(KB, percept)    │ (Eager unit propagation -> derives facts)
-       └───────────┬────────────┘
-                   │
-                   ▼
-       ┌────────────────────────┐
-       │   ASK(KB, Safe_(nx,ny))│ (PL-RESOLUTION: refutation theorem proving)
-       └───────────┬────────────┘
-                   │
-                   ▼
-       ┌────────────────────────┐
-       │   GOAL-DIRECTED MOVE   │ (A* distance to Goal + frontier backtracking)
-       └───────────┬────────────┘
-                   │
-         ┌─────────┴─────────┐
-         ▼                   ▼
-┌──────────────────┐ ┌──────────────────────┐
-│ Live Console Log │ │ Organic Pygame Render│ (Acid pools, gas clouds, trails)
-└──────────────────┘ └──────────────────────┘
-```
-
-> **Strict Causality Invariant**: The console log and KB inference always complete *before* the rover moves on screen. The GUI never reveals any cell that has not been perceived by the KB.
-
----
-
-## File Structure
-
-| File | Description |
-|---|---|
-| [`grid.py`](file:///d:/Ai_rover/grid.py) | Grid world model, Start/Goal definitions, solvability validation, and corridor injector. |
-| [`kb_engine.py`](file:///d:/Ai_rover/kb_engine.py) | Propositional KB, CNF clauses, Unit Propagation, and `PL-RESOLUTION` engine. |
-| [`agent.py`](file:///d:/Ai_rover/agent.py) | Goal-directed KB agent with heuristic pathing, global frontier backtracking, and safety invariant. |
-| [`visualizer.py`](file:///d:/Ai_rover/visualizer.py) | Mars-themed organic renderer (acid pools, gas clouds, landing pad, extraction beacon, tread trails). |
-| [`logger.py`](file:///d:/Ai_rover/logger.py) | Timestamped step-correlated console logger with ASCII fallback grid. |
-| [`main.py`](file:///d:/Ai_rover/main.py) | Simulation entry point supporting both Pygame GUI and Headless CLI modes. |
-| [`tests.py`](file:///d:/Ai_rover/tests.py) | Verification & stress test suite (50-run map solvability, 10-run goal completion). |

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARES-1 Mars Rover — 3D Knowledge-Based Mission Simulation</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- Three.js & OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <!-- 3D WebGL Canvas Container -->
+  <div id="canvas-container"></div>
+
+  <!-- FPV Cockpit Reticle Overlay (Active in Mast Cam mode) -->
+  <div id="cockpit-overlay" class="hidden">
+    <div class="reticle-center"></div>
+    <div class="reticle-circle"></div>
+    <div class="cockpit-telemetry-left">
+      <div class="cockpit-label">CAM: ROVER MAST FPV</div>
+      <div class="cockpit-val" id="cockpit-heading">HDG: 090°</div>
+      <div class="cockpit-val" id="cockpit-pitch">PITCH: +0.2°</div>
+    </div>
+    <div class="cockpit-telemetry-right">
+      <div class="cockpit-label">ATMOSPHERE: 0.6 kPa CO2</div>
+      <div class="cockpit-val" id="cockpit-rad">RAD: NOMINAL</div>
+      <div class="cockpit-val" id="cockpit-prox">SCAN: ACTIVE</div>
+    </div>
+  </div>
+
+  <!-- HUD Overlay Layer -->
+  <div id="hud-overlay">
+    <!-- Top Bar -->
+    <header id="top-bar">
+      <div class="brand">
+        <div class="status-pulse-dot" id="status-dot"></div>
+        <div class="title-group">
+          <h1>ARES-1 MARS ROVER <span class="badge-3d">3D SIMULATION</span></h1>
+          <p class="subtitle">Autonomous Propositional Logic KB-Agent (Resolution & Model Checking)</p>
+        </div>
+      </div>
+
+      <div class="top-controls">
+        <div class="status-badge" id="status-badge">NAVIGATING TO GOAL</div>
+        <button id="btn-sound" class="btn-icon" title="Toggle Synthesized Audio">🔊 Sound ON</button>
+        <button id="btn-pause" class="btn-top">[SPACE] Pause</button>
+      </div>
+    </header>
+
+    <!-- Floating Live Decision Subtitle Banner -->
+    <div id="decision-banner">
+      <span class="decision-tag" id="decision-tag">DECIDE</span>
+      <span class="decision-text" id="decision-text">Initializing 3D Planetary Surface and Knowledge Base...</span>
+    </div>
+
+    <!-- Right Telemetry & Control Panel -->
+    <aside id="sidebar-panel">
+      <!-- Section 1: Quick Actions -->
+      <div class="panel-section">
+        <button id="btn-regenerate" class="btn-action-primary">
+          <span class="btn-icon-symbol">⟳</span> REGENERATE SOLVABLE MAP [R]
+        </button>
+      </div>
+
+      <!-- Section 2: Camera View Modes -->
+      <div class="panel-section">
+        <div class="section-title">CAMERA VIEW MODES [C]</div>
+        <div class="camera-button-grid">
+          <button class="btn-cam active" data-cam="chase">🎥 Chase</button>
+          <button class="btn-cam" data-cam="satellite">🛰️ Satellite</button>
+          <button class="btn-cam" data-cam="mast">🤖 Mast FPV</button>
+          <button class="btn-cam" data-cam="orbit">🚀 Orbit</button>
+        </div>
+      </div>
+
+      <!-- Section 3: Speed Controller -->
+      <div class="panel-section">
+        <div class="section-header-flex">
+          <div class="section-title">SPEED CONTROLLER</div>
+          <div class="stat-highlight" id="speed-val">1.00x</div>
+        </div>
+        <div class="slider-control-row">
+          <button class="btn-nudge" id="btn-speed-minus">-</button>
+          <input type="range" id="speed-slider" min="0.25" max="4.0" step="0.05" value="1.0">
+          <button class="btn-nudge" id="btn-speed-plus">+</button>
+        </div>
+      </div>
+
+      <!-- Section 4: 2x2 Telemetry Cards -->
+      <div class="panel-section">
+        <div class="section-title">MISSION TELEMETRY</div>
+        <div class="telemetry-grid">
+          <div class="telem-card">
+            <div class="telem-label">STEP</div>
+            <div class="telem-val" id="telem-step">0</div>
+          </div>
+          <div class="telem-card">
+            <div class="telem-label">ROVER POSITION</div>
+            <div class="telem-val text-orange" id="telem-pos">(0, 0)</div>
+          </div>
+          <div class="telem-card">
+            <div class="telem-label">EXTRACTION GOAL</div>
+            <div class="telem-val text-cyan" id="telem-goal">(5, 5) [d=10]</div>
+          </div>
+          <div class="telem-card">
+            <div class="telem-label">KB CLAUSES</div>
+            <div class="telem-val text-green" id="telem-kb">3</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 5: Avoidance Counters -->
+      <div class="panel-section">
+        <div class="avoidance-grid">
+          <div class="avoid-card haz-card">
+            <div class="avoid-val text-red" id="avoid-hazards"><span class="symbol-icon">▲</span> 0</div>
+            <div class="avoid-label">Hazards Avoided</div>
+          </div>
+          <div class="avoid-card rad-card">
+            <div class="avoid-val text-yellow" id="avoid-radiation"><span class="symbol-icon">☢</span> 0</div>
+            <div class="avoid-label">Radiation Avoided</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 6: Solvability & Progress Bar -->
+      <div class="panel-section">
+        <div class="progress-info-row">
+          <div class="progress-desc" id="progress-desc">Start (0,0) → Goal (5,5) | Path: 100% Solvable</div>
+          <div class="progress-pct" id="progress-pct">0%</div>
+        </div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progress-bar-fill"></div>
+        </div>
+      </div>
+
+      <!-- Section 7: Live Logical Inference Feed -->
+      <div class="panel-section flex-grow">
+        <div class="section-title">LIVE LOGICAL INFERENCE FEED</div>
+        <div class="log-feed-box" id="log-feed">
+          <div class="log-line text-cyan">[INIT] 3D Mars surface initialized</div>
+          <div class="log-line text-muted">[KB] Entailment Engine: PL-Resolution ready</div>
+          <div class="log-line text-green">[INIT] Rover landed at Base (0,0)</div>
+        </div>
+      </div>
+
+      <!-- Section 8: Mission Controls Guide -->
+      <div class="panel-section controls-guide">
+        <div class="section-title">KEYBOARD CONTROLS</div>
+        <div class="controls-grid">
+          <div class="ctrl-key">[SPACE]</div><div class="ctrl-desc">Pause / Resume</div>
+          <div class="ctrl-key">[RIGHT]</div><div class="ctrl-desc">Single Step (when paused)</div>
+          <div class="ctrl-key">[R]</div><div class="ctrl-desc">Regenerate Solvable Map</div>
+          <div class="ctrl-key">[C]</div><div class="ctrl-desc">Cycle Camera Mode</div>
+          <div class="ctrl-key">[G]</div><div class="ctrl-desc">Toggle 3D Grid Lines</div>
+          <div class="ctrl-key">[+ / -]</div><div class="ctrl-desc">Adjust Simulation Speed</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Audio Synthesis Engine & 3D Application Script -->
+  <script src="js/app.js"></script>
+</body>
+</html>

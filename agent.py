@@ -147,7 +147,7 @@ class MarsRoverAgent:
                 nx, ny = next_cell
                 dist = abs(nx - self.goal_pos[0]) + abs(ny - self.goal_pos[1])
                 action_type = "MOVE"
-                decision_text = f"Move to ({nx},{ny}) toward Goal [dist={dist}] — inferred Safe by KB"
+                decision_text = f"Move to ({nx},{ny}) toward Goal [dist={dist}] -- inferred Safe by KB"
                 path = [(self.x, self.y), (nx, ny)]
                 self.x, self.y = nx, ny
                 self.path_history.append((nx, ny))
