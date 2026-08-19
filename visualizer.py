@@ -1,5 +1,5 @@
 """
-visualizer.py — Mars Rover Visualizer with Photo Background & Clean UI HUD
+visualizer.py — Mars Rover Visualizer with Photo Background, Symbol Overlays & Speed Controller
 
 Features:
   - Static photographic Mars surface background (no drawn grid lines)
@@ -7,10 +7,11 @@ Features:
   - Clean Symbol-based Hazard (Warning Triangle) and Radiation (Trefoil) markers
     with dark high-contrast backings (no unrenderable emoji glyphs)
   - Clickable "Regenerate Map" UI button + [R] key for full state reset
+  - Interactive Speed Bar Controller (slider + [-]/[+] buttons + draggable thumb)
   - Start (Landing Base) and Goal (Extraction Beacon) landmark icons
   - Soft atmospheric Fog-of-War overlay for unperceived cells
   - Persistent tire tracks on traveled terrain
-  - Slower, readable step pacing (default 1.0s per decision step)
+  - Slower, readable step pacing (default 1.0s per decision step, adjustable 0.25x-4.0x)
   - Debug grid overlay toggle ([G] key)
   - Generously spaced, polished Mission Control HUD with zero overlapping text
 """
@@ -39,14 +40,18 @@ COLOR_ACCENT_YELLOW = (245, 215, 65)
 COLOR_TEXT_WHITE = (242, 245, 252)
 COLOR_TEXT_MUTED = (145, 158, 180)
 
-# Button Colors
+# Button & Slider Colors
 BTN_BG_NORMAL = (28, 48, 72)
 BTN_BG_HOVER = (42, 74, 110)
 BTN_BORDER = (64, 180, 215)
+SLIDER_TRACK_BG = (30, 40, 58)
+SLIDER_FILL = (64, 200, 224)
+SLIDER_THUMB = (255, 255, 255)
+SLIDER_THUMB_RING = (64, 200, 224)
 
 
 class MarsRoverVisualizer:
-    """Photographic background visualizer with symbol overlays and interactive controls."""
+    """Photographic background visualizer with speed slider and symbol overlays."""
 
     def __init__(self, grid, agent, logger=None, step_delay=1.0):
         """
@@ -54,7 +59,7 @@ class MarsRoverVisualizer:
             grid: MarsGrid instance.
             agent: MarsRoverAgent instance.
             logger: RoverLogger instance.
-            step_delay: Decision step delay in seconds. Default: 1.0s (readable pacing).
+            step_delay: Base decision step delay in seconds. Default: 1.0s.
         """
         self.grid = grid
         self.agent = agent
@@ -97,13 +102,13 @@ class MarsRoverVisualizer:
 
         self.hud_width = 410
         self.window_width = self.grid_offset_x + self.grid_pixel_size + 30 + self.hud_width + 30
-        self.window_height = max(self.grid_pixel_size + self.grid_offset_y + 45, 740)
+        self.window_height = max(self.grid_pixel_size + self.grid_offset_y + 45, 760)
 
         self.screen = pygame.display.set_mode((self.window_width, self.window_height))
         pygame.display.set_caption("ARES-1 Mars Rover — Goal-Directed KB Mission")
         self.clock = pygame.time.Clock()
 
-        # Fonts with clean scaling
+        # Fonts
         self.font_title = pygame.font.SysFont("Segoe UI, Arial, sans-serif", 20, bold=True)
         self.font_subtitle = pygame.font.SysFont("Segoe UI, Arial, sans-serif", 13)
         self.font_card_title = pygame.font.SysFont("Segoe UI, Arial, sans-serif", 12, bold=True)
@@ -114,9 +119,15 @@ class MarsRoverVisualizer:
         self.font_badge = pygame.font.SysFont("Segoe UI, Arial, sans-serif", 12, bold=True)
         self.font_btn = pygame.font.SysFont("Segoe UI, Arial, sans-serif", 13, bold=True)
 
-        # UI Button rect
+        # UI Interactive Rects
         self.btn_regenerate_rect = pygame.Rect(0, 0, 10, 10)
         self.btn_is_hovered = False
+
+        # Speed Slider Rects & Dragging State
+        self.slider_track_rect = pygame.Rect(0, 0, 10, 10)
+        self.btn_speed_minus_rect = pygame.Rect(0, 0, 10, 10)
+        self.btn_speed_plus_rect = pygame.Rect(0, 0, 10, 10)
+        self.slider_is_dragging = False
 
         # Load Image Assets
         self._load_assets()
@@ -222,6 +233,16 @@ class MarsRoverVisualizer:
         print("=" * 65 + "\n")
         self.logger.print_header(self.grid)
 
+    def _update_speed_from_mouse(self, mouse_x):
+        """Calculate speed multiplier from mouse position along slider track."""
+        track_w = self.slider_track_rect.width
+        if track_w <= 0:
+            return
+        frac = max(0.0, min(1.0, (mouse_x - self.slider_track_rect.left) / track_w))
+        # Map 0.0..1.0 -> 0.25x..4.0x
+        new_speed = 0.25 + frac * (4.0 - 0.25)
+        self.speed_multiplier = round(new_speed, 2)
+
     def run(self):
         """Main Pygame application loop."""
         running = True
@@ -236,8 +257,27 @@ class MarsRoverVisualizer:
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    # Check Regenerate button
                     if self.btn_is_hovered:
                         self.reset_simulation()
+                    # Check Speed Minus button
+                    elif self.btn_speed_minus_rect.collidepoint(mouse_pos):
+                        self.speed_multiplier = max(0.25, round(self.speed_multiplier - 0.25, 2))
+                    # Check Speed Plus button
+                    elif self.btn_speed_plus_rect.collidepoint(mouse_pos):
+                        self.speed_multiplier = min(4.0, round(self.speed_multiplier + 0.25, 2))
+                    # Check Slider Bar click
+                    elif self.slider_track_rect.inflate(12, 20).collidepoint(mouse_pos):
+                        self.slider_is_dragging = True
+                        self._update_speed_from_mouse(mouse_pos[0])
+
+                elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                    self.slider_is_dragging = False
+
+                elif event.type == pygame.MOUSEMOTION:
+                    if self.slider_is_dragging:
+                        self._update_speed_from_mouse(mouse_pos[0])
+
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         running = False
@@ -251,13 +291,13 @@ class MarsRoverVisualizer:
                     elif event.key == pygame.K_g:
                         self.show_debug_grid = not self.show_debug_grid
                     elif event.key in (pygame.K_PLUS, pygame.K_KP_PLUS, pygame.K_EQUALS):
-                        self.speed_multiplier = min(4.0, self.speed_multiplier * 1.3)
+                        self.speed_multiplier = min(4.0, round(self.speed_multiplier + 0.25, 2))
                     elif event.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
-                        self.speed_multiplier = max(0.25, self.speed_multiplier / 1.3)
+                        self.speed_multiplier = max(0.25, round(self.speed_multiplier - 0.25, 2))
 
             # 2. Logic Step Trigger
             current_time = time.time()
-            effective_delay = self.step_delay / self.speed_multiplier
+            effective_delay = self.step_delay / max(0.1, self.speed_multiplier)
 
             if not self.is_paused and not self.is_finished:
                 if self.move_progress >= 1.0 and not self.animation_path_queue:
@@ -352,7 +392,7 @@ class MarsRoverVisualizer:
     def _update_rover_animation(self, dt):
         """Interpolate rover pixel position towards target."""
         if self.move_progress < 1.0:
-            speed = self.move_speed * self.speed_multiplier
+            speed = self.move_speed * max(0.5, self.speed_multiplier)
             self.move_progress = min(1.0, self.move_progress + speed * dt)
 
             t = self.move_progress
@@ -419,7 +459,6 @@ class MarsRoverVisualizer:
         for (sx, sy) in self.agent.known_safe:
             if (sx, sy) not in self.agent.visited and (sx, sy) != self.grid.goal_pos:
                 scx, scy = self.grid_to_center_screen(sx, sy)
-                # Waypoint beacon ring with dark contrast backing
                 pygame.draw.circle(self.screen, (16, 20, 28, 180), (scx, scy), int(self.tile_size * 0.26))
                 pygame.draw.circle(self.screen, (230, 120, 50), (scx, scy), int(self.tile_size * 0.26), width=2)
                 pygame.draw.circle(self.screen, (80, 220, 120), (scx, scy), 4)
@@ -455,9 +494,7 @@ class MarsRoverVisualizer:
         pygame.draw.rect(self.screen, COLOR_PANEL_BORDER, frame_rect, width=2, border_radius=4)
 
     def _render_hazard_symbol(self, pos):
-        """
-        Render crisp Warning Triangle icon for Hazard cell with dark contrast backing.
-        """
+        """Render crisp Warning Triangle icon for Hazard cell with dark contrast backing."""
         cx, cy = self.grid_to_center_screen(*pos)
         badge_r = int(self.tile_size * 0.32)
 
@@ -477,14 +514,12 @@ class MarsRoverVisualizer:
         pygame.draw.polygon(self.screen, (245, 175, 25), tri_pts)
         pygame.draw.polygon(self.screen, (255, 235, 180), tri_pts, width=1)
 
-        # Exclamation Mark [ ! ] inside triangle
+        # Exclamation Mark [ ! ]
         pygame.draw.line(self.screen, (20, 20, 20), (cx, cy - tri_size * 0.4), (cx, cy + tri_size * 0.2), 3)
         pygame.draw.circle(self.screen, (20, 20, 20), (cx, cy + tri_size * 0.5), 2)
 
     def _render_radiation_symbol(self, pos):
-        """
-        Render crisp Radioactive Trefoil icon for Radiation cell with dark contrast backing.
-        """
+        """Render crisp Radioactive Trefoil icon for Radiation cell with dark contrast backing."""
         cx, cy = self.grid_to_center_screen(*pos)
         badge_r = int(self.tile_size * 0.32)
 
@@ -494,7 +529,7 @@ class MarsRoverVisualizer:
         pygame.draw.circle(backing_surf, (140, 230, 40, 255), (badge_r + 2, badge_r + 2), badge_r, width=2)
         self.screen.blit(backing_surf, (cx - badge_r - 2, cy - badge_r - 2))
 
-        # Radioactive Trefoil Blades (Neon Yellow-Green)
+        # Radioactive Trefoil Blades
         center_dot_rad = max(3, int(badge_r * 0.2))
         pygame.draw.circle(self.screen, COLOR_ACCENT_YELLOW, (cx, cy), center_dot_rad)
 
@@ -512,7 +547,6 @@ class MarsRoverVisualizer:
         sx, sy = self.grid_to_center_screen(*self.grid.start_pos)
         pad_size = int(self.tile_size * 0.35)
 
-        # Landing pad octagonal base
         pts = []
         for i in range(8):
             ang = math.radians(i * 45 + 22.5)
@@ -530,13 +564,11 @@ class MarsRoverVisualizer:
         pulse = math.sin(time.time() * 4.0) * 3.0
         rad = int(self.tile_size * 0.36 + pulse)
 
-        # Skyward signal pulse ring
         beacon_surface = pygame.Surface((rad * 2 + 10, rad * 2 + 10), pygame.SRCALPHA)
         pygame.draw.circle(beacon_surface, (64, 200, 224, 75), (rad + 5, rad + 5), rad, width=2)
         pygame.draw.circle(beacon_surface, (64, 200, 224, 30), (rad + 5, rad + 5), rad - 5, width=1)
         self.screen.blit(beacon_surface, (gx - rad - 5, gy - rad - 5))
 
-        # Extraction Tower Structure
         pygame.draw.polygon(self.screen, (40, 55, 75), [
             (gx, gy - 16), (gx - 10, gy + 12), (gx + 10, gy + 12)
         ])
@@ -544,7 +576,6 @@ class MarsRoverVisualizer:
             (gx, gy - 16), (gx - 10, gy + 12), (gx + 10, gy + 12)
         ], width=2)
 
-        # Glowing core
         pygame.draw.circle(self.screen, (255, 255, 255), (gx, gy - 16), 4)
         pygame.draw.circle(self.screen, COLOR_ACCENT_CYAN, (gx, gy - 16), 7, width=1)
 
@@ -553,11 +584,7 @@ class MarsRoverVisualizer:
         self.screen.blit(glbl, grect)
 
     def _render_fog_of_war(self):
-        """
-        Soft atmospheric Fog-of-War overlay.
-        Unperceived cells are shrouded in dark translucent dust;
-        perceived cells punch smooth feathered light holes.
-        """
+        """Soft atmospheric Fog-of-War overlay."""
         w, h = self.grid_pixel_size, self.grid_pixel_size
         fog = pygame.Surface((w, h), pygame.SRCALPHA)
         fog.fill((16, 12, 14, 230))
@@ -569,12 +596,10 @@ class MarsRoverVisualizer:
             pygame.draw.circle(fog, (0, 0, 0, 0), (pcx, pcy), reveal_radius)
             pygame.draw.circle(fog, (16, 12, 14, 50), (pcx, pcy), reveal_radius + 8, width=8)
 
-        # Rover light punch-out
         rover_rel_x = int(self.rover_pixel_x - self.grid_offset_x)
         rover_rel_y = int(self.rover_pixel_y - self.grid_offset_y)
         pygame.draw.circle(fog, (0, 0, 0, 0), (rover_rel_x, rover_rel_y), int(self.tile_size * 0.82))
 
-        # Always reveal Start and Goal landmarks through fog
         sx, sy = self.grid.start_pos
         pygame.draw.circle(fog, (0, 0, 0, 0), (sx * self.tile_size + self.tile_size // 2, sy * self.tile_size + self.tile_size // 2), reveal_radius)
         gx, gy = self.grid.goal_pos
@@ -595,14 +620,14 @@ class MarsRoverVisualizer:
         rx = int(self.rover_pixel_x)
         ry = int(self.rover_pixel_y)
 
-        # 1. Partial-observability radar sweep pulse
+        # 1. Radar sweep pulse
         pulse_r = int((self.tile_size * 1.22) + math.sin(time.time() * 3.5) * 4.0)
         sensor_surface = pygame.Surface((pulse_r * 2, pulse_r * 2), pygame.SRCALPHA)
         pygame.draw.circle(sensor_surface, (64, 200, 224, 40), (pulse_r, pulse_r), pulse_r, width=1)
         pygame.draw.circle(sensor_surface, (64, 200, 224, 15), (pulse_r, pulse_r), pulse_r - 8, width=1)
         self.screen.blit(sensor_surface, (rx - pulse_r, ry - pulse_r))
 
-        # 2. Render Custom Rover Sprite with rotation
+        # 2. Custom Rover Sprite
         if self.rover_sprite_base:
             deg = -math.degrees(self.rover_heading)
             rotated_sprite = pygame.transform.rotate(self.rover_sprite_base, deg)
@@ -617,45 +642,49 @@ class MarsRoverVisualizer:
             pygame.draw.circle(self.screen, (230, 60, 40), (int(rx + math.cos(self.rover_heading) * 12), int(ry + math.sin(self.rover_heading) * 12)), 4)
 
     def _render_hud(self):
-        """Render generously spaced, polished Mission Control HUD panel."""
+        """Render generously spaced, polished Mission Control HUD panel with Speed Bar Controller."""
         hud_x = self.grid_offset_x + self.grid_pixel_size + 25
         hud_y = self.grid_offset_y - 15
         hud_h = self.window_height - hud_y - 25
 
-        # Background Card
+        # Background Panel
         panel_rect = pygame.Rect(hud_x, hud_y, self.hud_width, hud_h)
         pygame.draw.rect(self.screen, COLOR_PANEL_BG, panel_rect, border_radius=8)
         pygame.draw.rect(self.screen, COLOR_PANEL_BORDER, panel_rect, width=1, border_radius=8)
 
-        cur_y = hud_y + 16
+        cur_y = hud_y + 14
 
-        # --- 1. STATUS BADGE & SPEED ---
+        # --- 1. STATUS BADGE ---
         badge_text, badge_color = self._get_status_badge()
         badge_surf = self.font_badge.render(f"  {badge_text}  ", True, badge_color)
         badge_bg_rect = badge_surf.get_rect(topleft=(hud_x + 30, cur_y))
         pygame.draw.rect(self.screen, (28, 36, 50), badge_bg_rect.inflate(12, 6), border_radius=4)
-        # Drawn colored indicator circle
         pygame.draw.circle(self.screen, badge_color, (hud_x + 22, cur_y + badge_bg_rect.height // 2), 4)
         self.screen.blit(badge_surf, badge_bg_rect)
 
-        # Speed Multiplier
-        speed_txt = self.font_subtitle.render(f"Speed: {self.speed_multiplier:.1f}x", True, COLOR_TEXT_MUTED)
-        self.screen.blit(speed_txt, (hud_x + self.hud_width - 85, cur_y))
-        cur_y += 38
+        # Status text on right (Pause hint)
+        pause_txt = "[SPACE] Paused" if self.is_paused else "[SPACE] Running"
+        pause_col = COLOR_ACCENT_YELLOW if self.is_paused else COLOR_TEXT_MUTED
+        p_surf = self.font_subtitle.render(pause_txt, True, pause_col)
+        self.screen.blit(p_surf, (hud_x + self.hud_width - 115, cur_y + 2))
+        cur_y += 34
 
         # --- 2. REGENERATE MAP BUTTON ---
-        self.btn_regenerate_rect = pygame.Rect(hud_x + 16, cur_y, self.hud_width - 32, 40)
+        self.btn_regenerate_rect = pygame.Rect(hud_x + 16, cur_y, self.hud_width - 32, 36)
         btn_bg = BTN_BG_HOVER if self.btn_is_hovered else BTN_BG_NORMAL
         pygame.draw.rect(self.screen, btn_bg, self.btn_regenerate_rect, border_radius=6)
         pygame.draw.rect(self.screen, BTN_BORDER, self.btn_regenerate_rect, width=1, border_radius=6)
 
-        # Button Text (ASCII-clean, no unrenderable emoji)
         btn_txt = self.font_btn.render(">>  REGENERATE MAP  [R]  <<", True, COLOR_TEXT_WHITE)
         btn_txt_rect = btn_txt.get_rect(center=self.btn_regenerate_rect.center)
         self.screen.blit(btn_txt, btn_txt_rect)
-        cur_y += 50
+        cur_y += 46
 
-        # --- 3. 2x2 TELEMETRY METRICS GRID (Evenly Spaced Cards) ---
+        # --- 3. INTERACTIVE SPEED BAR CONTROLLER ---
+        cur_y = self._render_speed_controller(hud_x + 16, cur_y, self.hud_width - 32)
+        cur_y += 10
+
+        # --- 4. 2x2 TELEMETRY METRICS GRID ---
         gx, gy = self.grid.goal_pos
         dist_to_goal = abs(self.agent.x - gx) + abs(self.agent.y - gy)
 
@@ -666,40 +695,36 @@ class MarsRoverVisualizer:
             ("KB CLAUSES", str(self.agent.kb.clause_count), COLOR_ACCENT_GREEN, False),
         ]
         self._render_metric_grid(hud_x + 16, cur_y, self.hud_width - 32, metrics)
-        cur_y += 114
+        cur_y += 106
 
-        # --- 4. AVOIDANCE COUNTERS (Hazards & Radiation) ---
+        # --- 5. AVOIDANCE COUNTERS ---
         avoid_hazards = sum(1 for _, _, _, ht in self.agent.hazard_avoidance_events if ht == "Hazard")
         avoid_rad = sum(1 for _, _, _, ht in self.agent.hazard_avoidance_events if ht == "Radiation")
 
         card_w = (self.hud_width - 32 - 10) // 2
-        card_h = 46
+        card_h = 44
 
         haz_card = pygame.Rect(hud_x + 16, cur_y, card_w, card_h)
         rad_card = pygame.Rect(haz_card.right + 10, cur_y, card_w, card_h)
 
-        # Hazard Card
         pygame.draw.rect(self.screen, (38, 25, 30), haz_card, border_radius=6)
         pygame.draw.rect(self.screen, (80, 35, 42), haz_card, width=1, border_radius=6)
-        # Mini vector warning triangle
         self._draw_mini_warning_icon(haz_card.x + 14, haz_card.y + 14)
         h_val = self.font_stat_val.render(str(avoid_hazards), True, COLOR_ACCENT_RED)
         h_lbl = self.font_stat_lbl.render("Hazards Avoided", True, COLOR_TEXT_MUTED)
-        self.screen.blit(h_val, (haz_card.x + 28, haz_card.y + 6))
-        self.screen.blit(h_lbl, (haz_card.x + 10, haz_card.y + 26))
+        self.screen.blit(h_val, (haz_card.x + 28, haz_card.y + 5))
+        self.screen.blit(h_lbl, (haz_card.x + 10, haz_card.y + 24))
 
-        # Radiation Card
         pygame.draw.rect(self.screen, (26, 36, 22), rad_card, border_radius=6)
         pygame.draw.rect(self.screen, (52, 75, 28), rad_card, width=1, border_radius=6)
-        # Mini vector trefoil icon
         self._draw_mini_trefoil_icon(rad_card.x + 14, rad_card.y + 14)
         r_val = self.font_stat_val.render(str(avoid_rad), True, COLOR_ACCENT_YELLOW)
         r_lbl = self.font_stat_lbl.render("Radiation Avoided", True, COLOR_TEXT_MUTED)
-        self.screen.blit(r_val, (rad_card.x + 28, rad_card.y + 6))
-        self.screen.blit(r_lbl, (rad_card.x + 10, rad_card.y + 26))
-        cur_y += 56
+        self.screen.blit(r_val, (rad_card.x + 28, rad_card.y + 5))
+        self.screen.blit(r_lbl, (rad_card.x + 10, rad_card.y + 24))
+        cur_y += 52
 
-        # --- 5. PROGRESS TO GOAL / SOLVABILITY BADGE ---
+        # --- 6. PROGRESS TO GOAL BAR ---
         cov_lbl = self.font_stat_lbl.render(
             f"Start (0,0) -> Goal ({gx},{gy}) | Path: 100% Solvable",
             True, COLOR_TEXT_MUTED
@@ -717,29 +742,29 @@ class MarsRoverVisualizer:
         pygame.draw.rect(self.screen, (32, 40, 56), bar_bg, border_radius=4)
         bar_color = COLOR_ACCENT_GREEN if self.agent.reached_goal else COLOR_ACCENT_CYAN
         pygame.draw.rect(self.screen, bar_color, bar_fill, border_radius=4)
-        cur_y += 24
-
-        # --- 6. LIVE LOGICAL INFERENCE FEED ---
-        log_title = self.font_card_title.render("LIVE LOGICAL INFERENCE FEED", True, COLOR_ACCENT_CYAN)
-        self.screen.blit(log_title, (hud_x + 16, cur_y))
         cur_y += 22
 
-        log_box = pygame.Rect(hud_x + 16, cur_y, self.hud_width - 32, 135)
+        # --- 7. LIVE LOGICAL INFERENCE FEED ---
+        log_title = self.font_card_title.render("LIVE LOGICAL INFERENCE FEED", True, COLOR_ACCENT_CYAN)
+        self.screen.blit(log_title, (hud_x + 16, cur_y))
+        cur_y += 20
+
+        log_box = pygame.Rect(hud_x + 16, cur_y, self.hud_width - 32, 130)
         pygame.draw.rect(self.screen, (14, 18, 26), log_box, border_radius=6)
         pygame.draw.rect(self.screen, COLOR_PANEL_BORDER, log_box, width=1, border_radius=6)
 
-        self._render_log_feed(log_box.x + 10, log_box.y + 10, log_box.width - 20)
-        cur_y += 145
+        self._render_log_feed(log_box.x + 10, log_box.y + 8, log_box.width - 20)
+        cur_y += 140
 
-        # --- 7. MISSION CONTROLS GUIDE ---
+        # --- 8. MISSION CONTROLS GUIDE ---
         ctrl_title = self.font_card_title.render("MISSION CONTROLS", True, COLOR_TEXT_WHITE)
         self.screen.blit(ctrl_title, (hud_x + 16, cur_y))
-        cur_y += 20
+        cur_y += 18
 
         ctrls = [
             ("SPACE", "Pause / Resume"),
             ("RIGHT", "Single Step (when paused)"),
-            ("+ / -", "Adjust Speed"),
+            ("+ / -", "Adjust Speed (or use slider)"),
             ("R", "Regenerate Solvable Map"),
             ("G", f"Toggle Debug Grid [{'ON' if self.show_debug_grid else 'OFF'}]"),
             ("ESC", "Quit Simulation"),
@@ -749,12 +774,81 @@ class MarsRoverVisualizer:
             d_surf = self.font_subtitle.render(key_desc, True, COLOR_TEXT_MUTED)
             self.screen.blit(k_surf, (hud_x + 16, cur_y))
             self.screen.blit(d_surf, (hud_x + 90, cur_y))
-            cur_y += 18
+            cur_y += 17
+
+    def _render_speed_controller(self, x, y, width):
+        """
+        Render interactive speed controller card with:
+          - Speed Title & current multiplier text
+          - [-] Nudge button
+          - Draggable slider bar with filled track & glowing thumb
+          - [+] Nudge button
+        """
+        card_h = 52
+        card_rect = pygame.Rect(x, y, width, card_h)
+        pygame.draw.rect(self.screen, (24, 32, 45), card_rect, border_radius=6)
+        pygame.draw.rect(self.screen, (40, 54, 76), card_rect, width=1, border_radius=6)
+
+        # Header: Label and current speed
+        lbl_surf = self.font_stat_lbl.render("ROVER SPEED CONTROLLER", True, COLOR_TEXT_MUTED)
+        self.screen.blit(lbl_surf, (x + 10, y + 5))
+
+        val_str = f"{self.speed_multiplier:.2f}x"
+        val_col = COLOR_ACCENT_GREEN if self.speed_multiplier <= 1.0 else COLOR_ACCENT_ORANGE
+        val_surf = self.font_stat_val.render(val_str, True, val_col)
+        val_rect = val_surf.get_rect(topright=(x + width - 10, y + 4))
+        self.screen.blit(val_surf, val_rect)
+
+        # Slider Controls Row (y + 24)
+        btn_w, btn_h = 24, 20
+        slider_y = y + 26
+
+        # [-] Button
+        self.btn_speed_minus_rect = pygame.Rect(x + 10, slider_y, btn_w, btn_h)
+        pygame.draw.rect(self.screen, (34, 46, 66), self.btn_speed_minus_rect, border_radius=4)
+        pygame.draw.rect(self.screen, (60, 80, 110), self.btn_speed_minus_rect, width=1, border_radius=4)
+        m_txt = self.font_btn.render("-", True, COLOR_TEXT_WHITE)
+        self.screen.blit(m_txt, m_txt.get_rect(center=self.btn_speed_minus_rect.center))
+
+        # [+] Button
+        self.btn_speed_plus_rect = pygame.Rect(x + width - 10 - btn_w, slider_y, btn_w, btn_h)
+        pygame.draw.rect(self.screen, (34, 46, 66), self.btn_speed_plus_rect, border_radius=4)
+        pygame.draw.rect(self.screen, (60, 80, 110), self.btn_speed_plus_rect, width=1, border_radius=4)
+        p_txt = self.font_btn.render("+", True, COLOR_TEXT_WHITE)
+        self.screen.blit(p_txt, p_txt.get_rect(center=self.btn_speed_plus_rect.center))
+
+        # Slider Track
+        track_x = self.btn_speed_minus_rect.right + 10
+        track_w = self.btn_speed_plus_rect.left - 10 - track_x
+        track_h = 8
+        self.slider_track_rect = pygame.Rect(track_x, slider_y + 6, track_w, track_h)
+
+        # Background track
+        pygame.draw.rect(self.screen, SLIDER_TRACK_BG, self.slider_track_rect, border_radius=4)
+
+        # Filled track
+        frac = max(0.0, min(1.0, (self.speed_multiplier - 0.25) / (4.0 - 0.25)))
+        fill_w = int(track_w * frac)
+        if fill_w > 0:
+            fill_rect = pygame.Rect(track_x, slider_y + 6, fill_w, track_h)
+            pygame.draw.rect(self.screen, SLIDER_FILL, fill_rect, border_radius=4)
+
+        # Draggable Slider Thumb / Knob
+        thumb_cx = int(track_x + fill_w)
+        thumb_cy = slider_y + 10
+        thumb_r = 7 if not self.slider_is_dragging else 9
+
+        # Outer ring
+        pygame.draw.circle(self.screen, SLIDER_THUMB_RING, (thumb_cx, thumb_cy), thumb_r + 2)
+        # Inner white center
+        pygame.draw.circle(self.screen, SLIDER_THUMB, (thumb_cx, thumb_cy), thumb_r)
+
+        return y + card_h
 
     def _render_metric_grid(self, x, y, width, metrics):
         """Render 2x2 telemetry cards with generous vertical spacing (no overlapping)."""
         card_w = (width - 10) // 2
-        card_h = 48
+        card_h = 46
 
         for i, (lbl, val, col, is_small) in enumerate(metrics):
             cx = x + (i % 2) * (card_w + 10)
@@ -771,7 +865,7 @@ class MarsRoverVisualizer:
             # Value below label with clean spacing
             font_to_use = self.font_stat_val_sm if is_small else self.font_stat_val
             v_surf = font_to_use.render(val, True, col)
-            self.screen.blit(v_surf, (cx + 8, cy + 23))
+            self.screen.blit(v_surf, (cx + 8, cy + 22))
 
     def _draw_mini_warning_icon(self, cx, cy):
         """Draw small vector warning triangle in Avoidance Card."""
